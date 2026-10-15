@@ -1,3 +1,5 @@
+
 pandas
 ta
 plotly
+yfinance
