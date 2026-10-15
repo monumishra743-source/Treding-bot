@@ -203,7 +203,11 @@ if not st.session_state.is_paused:
             # --- 📰 अपग्रेडेड फीचर: मल्टी-सोर्स लाइव न्यूज़ स्ट्रीम पैनल ---
             st.markdown("---")
             st.subheader(f"📰 Live Business Headlines Stream ({ticker})")
-            if not df_news.empty:
-                for idx, row in df_news.iterrows():
-                    st.markdown(f"**{row['Source']}** | {row['Headline']}")
-            else:
+            
+        
+                
+if not df_news.empty:
+    for idx, row in df_news.iterrows():
+        st.markdown(f"**{row['Source']}** | {row['Headline']}")
+else:
+    st.info("📰 फिलहाल कोई नई लाइव बिजनेस न्यूज़ उपलब्ध नहीं है।")
