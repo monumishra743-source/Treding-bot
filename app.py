@@ -1,4 +1,3 @@
-
 import time
 import pandas as pd
 import numpy as np
@@ -10,7 +9,7 @@ from datetime import datetime
 
 # --- 1. पेज सेटअप और इंटरफेस डिज़ाइन ---
 st.set_page_config(page_title="Hybrid Institutional Engine", layout="wide")
-st.title("🏛️ Hybrid Institutional Terminal (Groww Charts & Full Algo Auto-Mode)")
+st.title("🏛️ Hybrid Institutional Terminal (All MCX Commodities & Groww Mode)")
 st.markdown("---")
 
 # --- 2. एडवांस्ड लाइव ऑडियो सायरन (Sound Engine) ---
@@ -42,8 +41,25 @@ if asset_type == "Indices (Nifty/BankNifty)":
     ticker_choice = st.sidebar.selectbox("Select Ticker", ["Nifty 50 (^NSEI)", "Bank Nifty (^NSEBANK)"])
     ticker = "^NSEI" if "Nifty 50" in ticker_choice else "^NSEBANK"
 elif asset_type == "Commodities (MCX)":
-    ticker_choice = st.sidebar.selectbox("Select Commodity", ["Crude Oil (CL=F)", "Gold (GC=F)", "Silver (SI=F)"])
-    ticker = "CL=F" if "Crude Oil" in ticker_choice else ("GC=F" if "Gold" in ticker_choice else "SI=F")
+    ticker_choice = st.sidebar.selectbox(
+        "Select Commodity", 
+        [
+            "Crude Oil (CL=F)", "Natural Gas (NG=F)", 
+            "Gold (GC=F)", "Silver (SI=F)", 
+            "Copper (HG=F)", "Zinc (ZNC=F)", "Lead (LED=F)", "Aluminum (ALI=F)",
+            "Mentha Oil (MNT=F)", "Cotton (TT=F)"
+        ]
+    )
+    if "Crude Oil" in ticker_choice: ticker = "CL=F"
+    elif "Natural Gas" in ticker_choice: ticker = "NG=F"
+    elif "Gold" in ticker_choice: ticker = "GC=F"
+    elif "Silver" in ticker_choice: ticker = "SI=F"
+    elif "Copper" in ticker_choice: ticker = "HG=F"
+    elif "Zinc" in ticker_choice: ticker = "ZNC=F"
+    elif "Lead" in ticker_choice: ticker = "LED=F"
+    elif "Aluminum" in ticker_choice: ticker = "ALI=F"
+    elif "Mentha Oil" in ticker_choice: ticker = "MNT=F"
+    else: ticker = "TT=F"
 else:
     stock_input = st.sidebar.text_input("Enter NSE Stock Ticker (e.g. RELIANCE, MANKIND)", value="RELIANCE")
     ticker = f"{stock_input}.NS"
@@ -69,7 +85,7 @@ if 'daily_pnl' not in st.session_state:
 if 'trade_history' not in st.session_state:
     st.session_state.trade_history = []
 
-# --- 4. संस्थागत FII/DII चाल + Open Interest (OI) मैट्रिक्स ---
+# --- 4. FII/DII चाल + Open Interest (OI) मैट्रिक्स ---
 def analyze_smart_money(df):
     if len(df) < 20:
         return df
@@ -84,7 +100,6 @@ def analyze_smart_money(df):
     
     np.random.seed(int(time.time()))
     df['pcr'] = np.random.uniform(0.6, 1.4, len(df))
-    
     df['signal'] = "HOLD"
     
     buy_matrix = (df['Close'] > df['vwap']) & (df['inst_volume'] == True) & (df['pcr'] > 1.15)
@@ -95,7 +110,7 @@ def analyze_smart_money(df):
     
     return df
 
-# --- 5. असली लाइव संकेत डेटा फीड इंजन (Yahoo Finance) ---
+# --- 5. असली लाइव डेटा फीड इंजन ---
 def fetch_real_market_data(symbol):
     try:
         ticker_data = yf.Ticker(symbol)
@@ -205,5 +220,4 @@ if not st.session_state.is_paused:
     
     time.sleep(5)
 else:
-    st.warning("⚠️ अलर्ट: ट्रेडिंग终端 वर्तमान में पूरी तरह निष्क्रिय (PAUSED) स्थिति में है।")
-
+    st.warning("⚠️ अलर्ट: ट्रेडिंग टर्मिनल वर्तमान में पूरी तरह निष्क्रिय (PAUSED) स्थिति में है।")
