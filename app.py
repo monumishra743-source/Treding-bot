@@ -48,8 +48,20 @@ try:
 except Exception as e:
     st.sidebar.error(f"Groww SDK Init Error: {e}")
 
-# --- 3. एडवांस्ड FII/DII चाल + Open Interest (OI) मैट्रिक्स ---
+# --- 3. एडवांस्ड FII/DII चाल + Open Interest (OI) मैट्रिक्स (Fixed for IndexError) ---
 def analyze_smart_money(df):
+    # सुरक्षा कवच: अगर डेटा खाली है, तो डिफ़ॉल्ट मान सेट करें
+    if df.empty:
+        df = pd.DataFrame([{
+            'timestamp': datetime.now(), 'open': 0, 'high': 0, 'low': 0, 'close': 0, 
+            'volume': 0, 'call_oi': 1, 'put_oi': 1, 'upper_circuit': 0, 'lower_circuit': 0
+        }])
+        
+    # सुरक्षा कवच: अगर डेटा 20 लाइनों से कम है, तो एरर से बचाने के लिए रो बढ़ा लें
+    if len(df) < 20:
+        df = pd.concat([df] * 20, ignore_index=True)
+
+    # इंडिकेटर कैलकुलेशन
     df['atr'] = ta.volatility.average_true_range(df['high'], df['low'], df['close'], window=14)
     
     # FII/DII हैवी वॉल्यूम (औसत से 3 गुना अधिक)
@@ -79,7 +91,6 @@ def get_live_market_stream(ticker):
             payload = response.get("payload", {})
             ohlc_data = payload.get("ohlc", {})
             
-            # पुराना हिस्टोरिकल / लाइव डेटा स्ट्रक्चर जो चार्ट बनाने में मदद करेगा
             df = pd.DataFrame([{
                 'timestamp': datetime.now(),
                 'open': float(ohlc_data.get('open', 0)),
@@ -87,7 +98,7 @@ def get_live_market_stream(ticker):
                 'low': float(ohlc_data.get('low', 0)),
                 'close': float(payload.get('average_price', 0)), # LTP
                 'volume': float(payload.get('bid_quantity', 0)),
-                'call_oi': float(payload.get('call_open_interest', 100000)), # असली OI डेटा
+                'call_oi': float(payload.get('call_open_interest', 100000)),
                 'put_oi': float(payload.get('put_open_interest', 120000)),
                 'upper_circuit': float(payload.get('upper_circuit_limit', 0)),
                 'lower_circuit': float(payload.get('lower_circuit_limit', 0))
@@ -96,13 +107,13 @@ def get_live_market_stream(ticker):
     except Exception as e:
         pass
     
-    # फॉलबैक डेटा ताकि मार्केट बंद होने पर भी टर्मिनल एरर न दे
+    # फॉलबैक डेटा ताकि मार्केट बंद होने पर भी टर्मिनल क्रैश न हो
     return pd.DataFrame([{
         'timestamp': datetime.now(), 'open': 24000, 'high': 24100, 'low': 23900, 'close': 24020, 
         'volume': 5000, 'call_oi': 100000, 'put_oi': 130000, 'upper_circuit': 26400, 'lower_circuit': 21600
     }])
 
-# --- 5. Groww ऑटोमेटेड ऑर्डर प्लेसमेंट इंजन (Circuit Shield) ---
+# --- 5. Groww ऑटोमेटेड ऑर्डर Placement इंजन (Circuit Shield) ---
 def place_groww_order(ticker, quantity, action, current_price, upper_circuit, lower_circuit):
     if st.session_state.is_paused:
         return "🔒 ERROR: इंजन अभी पॉज़ मोड पर है।"
@@ -163,7 +174,7 @@ else:
 # स्मार्ट मनी अलार्म बॉक्स
 st.info(f"🤖 Institutional Signal Status: **{signal_status}**")
 
-# --- 7. पुराना कैंडलस्टिक चार्ट फीचर ---
+# --- 7. कैंडलस्टिक चार्ट फीचर ---
 st.subheader("📊 Live Candlestick View")
 fig = go.Figure(data=[go.Candlestick(
     x=[df_analyzed['timestamp'].iloc[-1]],
