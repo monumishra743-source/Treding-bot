@@ -1,15 +1,47 @@
 import streamlit as st
 import streamlit.components.v1 as components
+import json
+
+# 🔴 अपनी बनाई हुई लाइब्रेरी फ़ाइल से आर्डर फ़ंक्शन को इम्पोर्ट करना
+from dhan_helper import place_dhan_order
 
 # Streamlit पेज सेटिंग्स
-st.set_page_config(page_title="Dhan Premium Algo Dashboard", layout="wide")
+st.set_page_config(page_title="Dhan Live Algo Terminal", layout="wide")
+st.title("⚡ Dhan Live Algo Engine Control")
 
-# आपकी धन डिटेल्स यहाँ बैकएंड में लॉक हैं
 MY_DHAN_ID = "11118"
-# 🔴 धन वेबसाइट से मिली परमानेंट की (Key) को यहाँ उद्धरण चिह्नों "" के बीच पेस्ट करें
-MY_PERMANENT_TOKEN = "YOUR_PERMANENT_API_KEY" 
 
-# एचटीएमएल, सीएसएस और जावास्क्रिप्ट कोड (100% डायरेक्ट इंटरनेट मोड)
+# फ्रंटएंड से जावास्क्रिप्ट डेटा रिसीव करना
+ctx = components.declare_component("dhan_order_bridge", value=None)
+order_data_raw = ctx()
+
+if order_data_raw:
+    try:
+        order_info = json.loads(order_data_raw)
+        action = order_info.get("action")
+        symbol = order_info.get("symbol")
+        quantity = order_info.get("quantity", 10)
+        user_token = order_info.get("token")
+        
+        # 🚀 लाइब्रेरी फ़ंक्शन को कॉल करना (Real Trade Execution)
+        response = place_dhan_order(
+            client_id=MY_DHAN_ID,
+            access_token=user_token,
+            action=action,
+            symbol=symbol,
+            quantity=quantity
+        )
+        
+        # स्क्रीन पर रिस्पांस दिखाना
+        if response["status"] == "success":
+            st.success(f"Dhan Server Success: {response['data']}")
+        else:
+            st.error(f"Dhan Server Error: {response['message']}")
+            
+    except Exception as e:
+        st.error(f"Bridge Error: {str(e)}")
+
+# फ्रंटएंड इंटरफ़ेस कोड (HTML/CSS)
 html_code = f"""
 <!DOCTYPE html>
 <html lang="hi">
@@ -25,9 +57,7 @@ html_code = f"""
             --primary-green: #238636;
             --primary-red: #da3637;
             --border-color: #30363d;
-            --accent-blue: #58a6ff;
         }}
-
         body {{
             font-family: -apple-system, BlinkMacSystemFont, sans-serif;
             background-color: var(--bg-color);
@@ -35,7 +65,6 @@ html_code = f"""
             margin: 0;
             padding: 10px;
         }}
-
         .container {{
             max-width: 100%;
             margin: 0 auto;
@@ -43,13 +72,9 @@ html_code = f"""
             grid-template-columns: 1fr;
             gap: 15px;
         }}
-
         @media (min-width: 768px) {{
-            .container {{
-                grid-template-columns: 360px 1fr;
-            }}
+            .container {{ grid-template-columns: 360px 1fr; }}
         }}
-
         .status-bar {{
             background-color: rgba(35, 134, 54, 0.12);
             border: 1px solid var(--primary-green);
@@ -58,203 +83,98 @@ html_code = f"""
             border-radius: 8px;
             font-weight: bold;
             text-align: center;
-            font-size: 14px;
-            grid-column: 1 / -1;
         }}
-
         .card {{
             background-color: var(--card-bg);
             border: 1px solid var(--border-color);
             border-radius: 12px;
             padding: 18px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
         }}
-
-        h3 {{
-            color: var(--text-bright);
-            margin: 15px 0 10px 0;
-            border-bottom: 1px solid var(--border-color);
-            padding-bottom: 8px;
-            font-size: 16px;
-        }}
-
-        label {{
-            display: block;
-            margin-bottom: 5px;
-            font-size: 12px;
-            color: #768390;
-        }}
-
+        label {{ display: block; margin-bottom: 5px; font-size: 12px; color: #768390; }}
         input, select {{
-            width: 100%;
-            padding: 10px;
-            background-color: #0b0e14;
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            color: var(--text-bright);
-            font-size: 14px;
-            box-sizing: border-box;
+            width: 100%; padding: 10px; background-color: #0b0e14;
+            border: 1px solid var(--border-color); border-radius: 6px;
+            color: var(--text-bright); font-size: 14px; box-sizing: border-box;
         }}
-
-        .row-2 {{
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-        }}
-
-        .live-price-box {{
-            text-align: center;
-            background: #0b0e14;
-            padding: 12px;
-            border-radius: 8px;
-            border: 1px solid var(--border-color);
-            margin: 15px 0;
-        }}
-
-        .ltp-val {{
-            font-size: 26px;
-            font-weight: bold;
-            color: #56d364;
-            font-family: monospace;
-        }}
-
-        .btn-panel {{
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-        }}
-
-        .btn {{
-            width: 100%;
-            padding: 12px;
-            border: none;
-            border-radius: 6px;
-            font-weight: bold;
-            cursor: pointer;
-            color: var(--text-bright);
-        }}
-
+        .row-2 {{ display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }}
+        .btn-panel {{ display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }}
+        .btn {{ width: 100%; padding: 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; color: var(--text-bright); }}
         .btn-buy {{ background-color: var(--primary-green); }}
         .btn-sell {{ background-color: var(--primary-red); }}
-
-        .response-box {{
-            margin-top: 15px;
-            background-color: #1c2128;
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            padding: 10px;
-            font-size: 12px;
-            max-height: 120px;
-            overflow-y: auto;
-            color: #f0f6fc;
-        }}
-
-        .chart-container {{
-            min-height: 500px;
-            background-color: var(--card-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            overflow: hidden;
-        }}
+        .response-box {{ margin-top: 15px; background-color: #1c2128; border: 1px solid var(--border-color); border-radius: 6px; padding: 10px; font-size: 12px; height: 80px; overflow-y: auto; color: #f0f6fc; }}
+        .chart-container {{ min-height: 500px; background-color: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; }}
     </style>
 </head>
 <body>
-
 <div class="container">
-    <div class="status-bar">
-        🟢 SMART DIRECT MODE: धन API इंजन बैकएंड से सीधे जुड़ा हुआ है
+    <div class="status-bar" style="grid-column: 1 / -1;">
+        🟢 MULTI-FILE ARCHITECTURE: लाइब्रेरी लोड हो चुकी है
     </div>
-
     <div class="card">
-        <h3>🛡️ रिस्क कण्ट्रोल (Risk Controls)</h3>
-        <div class="row-2">
-            <div>
-                <label>मैक्स डेली ट्रेड्स</label>
-                <input type="number" value="5">
-            </div>
-            <div>
-                <label>मैक्स लॉस कैप</label>
-                <input type="number" value="500">
-            </div>
+        <h3>🔑 लाइव ऑथेंटिकेशन</h3>
+        <div>
+            <label>Dhan Client ID</label>
+            <input type="text" value="{MY_DHAN_ID}" readonly style="background-color: #21262d; color: #8b949e;">
         </div>
-
-        <h3>📦 टर्मिनल स्टेटस</h3>
-        <div style="background: #21262d; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); font-size: 13px;">
-            <p style="margin: 3px 0;"><strong>Client ID:</strong> {MY_DHAN_ID}</p>
-            <p style="margin: 3px 0; color: #56d364;"><strong>Auth Connection:</strong> ऑटोमैटिक (डायरेक्ट)</p>
+        <div style="margin-top: 10px;">
+            <label>Dhan Access Token</label>
+            <input type="password" id="dhanTokenInput" placeholder="यहाँ लाइव टोकन पेस्ट करें">
         </div>
-
         <h3>⚡ आर्डर कॉन्फ़िगरेशन</h3>
         <div>
-            <label>ट्रेडिंग सिंबल दर्ज करें</label>
+            <label>ट्रेडिंग सिंबल</label>
             <input type="text" id="assetSymbol" value="NATURALGAS" onchange="handleSymbolChange()">
         </div>
-        
         <div class="row-2" style="margin-top: 10px;">
             <div>
                 <label>क्वांटिटी (Qty)</label>
-                <input type="number" value="10">
+                <input type="number" id="orderQty" value="10">
             </div>
             <div>
-                <label>ऑर्डर टाइप</label>
-                <select>
-                    <option>MARKET</option>
-                    <option>LIMIT</option>
-                </select>
+                <label>टाइप</label>
+                <select><option>MARKET</option></select>
             </div>
         </div>
-
-        <div class="live-price-box">
-            <label>LIVE LTP (DIRECT INTERNET)</label>
-            <div class="ltp-val" id="displayLtp">सक्रिय मोड</div>
-        </div>
-
         <div class="btn-panel">
-            <button class="btn btn-buy" onclick="simulateOrder('BUY')">Institutional Buy</button>
-            <button class="btn btn-sell" onclick="simulateOrder('SELL')">Institutional Sell</button>
+            <button class="btn btn-buy" onclick="executeRealOrder('BUY')">Institutional Buy</button>
+            <button class="btn btn-sell" onclick="executeRealOrder('SELL')">Institutional Sell</button>
         </div>
-
-        <h3>📋 सिस्टम लॉग्स (Logs)</h3>
-        <div class="response-box" id="logConsole">
-            सिस्टम पूरी तरह तैयार है। सिंबल इनपुट करें।
-        </div>
+        <h3>📋 सिस्टम लॉग्स</h3>
+        <div class="response-box" id="logConsole">लाइब्रेरी फ़ाइल कनेक्टेड। आर्डर के लिए तैयार।</div>
     </div>
-
-    <div class="chart-container">
-        <div id="tv_widget_live" style="height: 100%; width: 100%;"></div>
-    </div>
+    <div class="chart-container"><div id="tv_widget_live" style="height: 100%; width: 100%;"></div></div>
 </div>
-
 <script type="text/javascript" src="https://tradingview.com"></script>
 <script type="text/javascript">
     window.onload = function() {{
+        let savedToken = localStorage.getItem('dhan_live_token');
+        if(savedToken) {{ document.getElementById('dhanTokenInput').value = savedToken; }}
         loadChart("NATURALGAS");
     }}
-
     function loadChart(symbolName) {{
         let marketPrefix = "MCX:";
-        if(symbolName === "TECHM" || symbolName === "RELIANCE" || symbolName === "SBIN") {{
-            marketPrefix = "NSE:";
-        }}
-        
+        if(symbolName === "TECHM" || symbolName === "RELIANCE") {{ marketPrefix = "NSE:"; }}
         new TradingView.widget({{"autosize": true, "symbol": marketPrefix + symbolName, "interval": "5", "timezone": "Asia/Kolkata", "theme": "dark", "style": "1", "locale": "in", "container_id": "tv_widget_live"}});
-        document.getElementById("displayLtp").innerText = "लाइव चार्ट कनेक्टेड";
     }}
-
     function handleSymbolChange() {{
         let sym = document.getElementById("assetSymbol").value.toUpperCase().trim();
         document.getElementById("assetSymbol").value = sym;
         loadChart(sym);
     }}
-
-    function simulateOrder(action) {{
+    function executeRealOrder(action) {{
         let sym = document.getElementById("assetSymbol").value;
-        document.getElementById("logConsole").innerHTML = "<span style='color:#56d364'>सफलता: " + action + " आर्डर " + sym + " के लिए सीधे धन API को भेज दिया गया है।</span>";
+        let qty = document.getElementById("orderQty").value;
+        let token = document.getElementById("dhanTokenInput").value;
+        if(!token) {{ alert("टोकन दर्ज करें!"); return; }}
+        localStorage.setItem('dhan_live_token', token);
+        let orderDetails = {{ "action": action, "symbol": sym, "quantity": qty, "token": token }};
+        document.getElementById("logConsole").innerHTML = "आर्डर जा रहा है...";
+        if (window.parent && window.parent.postMessage) {{
+            window.parent.postMessage({ type: 'streamlit:setComponentValue', value: JSON.stringify(orderDetails) }, '*');
+        }}
     }}
 </script>
 </body>
 </html>
 """
-
-# HTML कंपोनेंट रेंडर करना
 components.html(html_code, height=750, scrolling=True)
