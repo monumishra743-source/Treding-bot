@@ -39,14 +39,21 @@ if 'trade_count' not in st.session_state:
 if 'daily_pnl' not in st.session_state:
     st.session_state.daily_pnl = 0.0
 
-# Groww API Credentials (इन्हें अपने Groww डैशबोर्ड से बदलें)
-GROWW_API_KEY = "YOUR_GROWW_API_KEY"
-GROWW_SECRET = "YOUR_GROWW_SECRET"
+# --- 🔑 Groww टोकन ऑथेंटिकेशन पैनल (नया सुधार) ---
+st.sidebar.markdown("---")
+st.sidebar.subheader("🔑 Groww Authentication")
 
-# फिक्स: Groww API को बिना आर्गुमेंट एरर के इनिशियलाइज करना
+# सीधे मोबाइल स्क्रीन से टोकन डालने के लिए इनपुट बॉक्स
+groww_token = st.sidebar.text_input("Enter Daily Groww Token:", type="password", help="Groww Cloud से मिला टोकन यहाँ डालें")
+
+# टोकन के साथ API इनिशियलाइज करना
 try:
-    groww = GrowwAPI()
-    # अगर आपके पास टोकन सेटअप है तो डायरेक्ट कनेक्ट होगा
+    if groww_token:
+        groww = GrowwAPI(token=groww_token)
+    else:
+        # स्क्रीन क्रैश होने से बचाने के लिए डिफ़ॉल्ट टोकन
+        groww = GrowwAPI(token="dummy_token") 
+        st.sidebar.warning("⚠️ कृपया लाइव ट्रेडिंग के लिए Groww Token दर्ज करें।")
 except Exception as e:
     st.sidebar.error(f"Groww SDK Init Error: {e}")
 
@@ -83,30 +90,31 @@ def analyze_smart_money(df):
 # --- 4. Groww लाइव डेटा स्ट्रीम फ़ंक्शन ---
 def get_live_market_stream(ticker):
     try:
-        segment = "FNO" if "NIFTY" in ticker.upper() or "BANKNIFTY" in ticker.upper() else "CASH"
-        response = groww.get_live_data(exchange="NSE", segment=segment, trading_symbol=ticker)
-        
-        if response and response.get("status") == "SUCCESS":
-            payload = response.get("payload", {})
-            ohlc_data = payload.get("ohlc", {})
+        if groww_token and groww_token != "dummy_token":
+            segment = "FNO" if "NIFTY" in ticker.upper() or "BANKNIFTY" in ticker.upper() else "CASH"
+            response = groww.get_live_data(exchange="NSE", segment=segment, trading_symbol=ticker)
             
-            df = pd.DataFrame([{
-                'timestamp': datetime.now(),
-                'open': float(ohlc_data.get('open', 0)),
-                'high': float(ohlc_data.get('high', 0)),
-                'low': float(ohlc_data.get('low', 0)),
-                'close': float(payload.get('average_price', 0)), # LTP
-                'volume': float(payload.get('bid_quantity', 0)),
-                'call_oi': float(payload.get('call_open_interest', 100000)),
-                'put_oi': float(payload.get('put_open_interest', 120000)),
-                'upper_circuit': float(payload.get('upper_circuit_limit', 0)),
-                'lower_circuit': float(payload.get('lower_circuit_limit', 0))
-            }])
-            return df
+            if response and response.get("status") == "SUCCESS":
+                payload = response.get("payload", {})
+                ohlc_data = payload.get("ohlc", {})
+                
+                df = pd.DataFrame([{
+                    'timestamp': datetime.now(),
+                    'open': float(ohlc_data.get('open', 0)),
+                    'high': float(ohlc_data.get('high', 0)),
+                    'low': float(ohlc_data.get('low', 0)),
+                    'close': float(payload.get('average_price', 0)), # LTP
+                    'volume': float(payload.get('bid_quantity', 0)),
+                    'call_oi': float(payload.get('call_open_interest', 100000)),
+                    'put_oi': float(payload.get('put_open_interest', 120000)),
+                    'upper_circuit': float(payload.get('upper_circuit_limit', 0)),
+                    'lower_circuit': float(payload.get('lower_circuit_limit', 0))
+                }])
+                return df
     except Exception as e:
         pass
     
-    # फॉलबैक डेटा (मार्केट बंद होने या एपीआई रिस्पॉन्स न मिलने पर)
+    # फॉलबैक डेटा (टोकन न होने या मार्केट बंद होने पर बोट चालू रखने के लिए)
     return pd.DataFrame([{
         'timestamp': datetime.now(), 'open': 24000, 'high': 24100, 'low': 23900, 'close': 24020, 
         'volume': 5000, 'call_oi': 100000, 'put_oi': 130000, 'upper_circuit': 26400, 'lower_circuit': 21600
@@ -114,6 +122,8 @@ def get_live_market_stream(ticker):
 
 # --- 5. Groww ऑटोमेटेड ऑर्डर Placement इंजन (Circuit Shield) ---
 def place_groww_order(ticker, quantity, action, current_price, upper_circuit, lower_circuit):
+    if groww_token == "dummy_token" or not groww_token:
+        return "❌ ERROR: कृपया पहले साइडबार में वैध Groww Token दर्ज करें!"
     if st.session_state.is_paused:
         return "🔒 ERROR: इंजन अभी पॉज़ मोड पर है।"
     if st.session_state.daily_pnl <= -max_loss_limit:
@@ -173,7 +183,7 @@ else:
 # स्मार्ट मनी अलार्म बॉक्स
 st.info(f"🤖 Institutional Signal Status: **{signal_status}**")
 
-# --- 7. कैंडलस्टिक चार्ट फीचर (Fixed for theme/template ValueEdgeError) ---
+# --- 7. कैंडलस्टिक चार्ट फीचर ---
 st.subheader("📊 Live Candlestick View")
 fig = go.Figure(data=[go.Candlestick(
     x=[df_analyzed['timestamp'].iloc[-1]],
@@ -183,7 +193,6 @@ fig = go.Figure(data=[go.Candlestick(
     close=[ltp],
     name=ticker_input
 )])
-# फिक्स: theme की जगह template="plotly_dark" का उपयोग किया गया है
 fig.update_layout(template="plotly_dark", xaxis_rangeslider_visible=False)
 st.plotly_chart(fig, use_container_width=True)
 
