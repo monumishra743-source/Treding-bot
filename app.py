@@ -1,9 +1,16 @@
+import streamlit as st
+import streamlit.components.v1 as components
+
+# Streamlit पेज की सेटिंग्स (टाइटल और लेआउट)
+st.set_page_config(page_title="Dhan Premium Algo Dashboard", layout="wide")
+
+# एचटीएमएल, सीएसएस और जावास्क्रिप्ट कोड (बिना किसी इनवैलिड इमोजी के)
+html_code = """
 <!DOCTYPE html>
 <html lang="hi">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>⚡ Dhan Algo Premium Dashboard</title>
     <style>
         :root {
             --bg-color: #0b0e14;
@@ -25,7 +32,7 @@
         }
 
         .container {
-            max-width: 1300px;
+            max-width: 100%;
             margin: 0 auto;
             display: grid;
             grid-template-columns: 1fr;
@@ -84,11 +91,6 @@
             box-sizing: border-box;
         }
 
-        input:focus {
-            border-color: var(--accent-blue);
-            outline: none;
-        }
-
         .row-2 {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -118,6 +120,7 @@
         }
 
         .btn {
+            width: 100%;
             padding: 12px;
             border: none;
             border-radius: 6px;
@@ -136,7 +139,7 @@
             border-radius: 6px;
             padding: 10px;
             font-size: 12px;
-            max-height: 150px;
+            max-height: 120px;
             overflow-y: auto;
             color: #f0f6fc;
         }
@@ -154,46 +157,45 @@
 
 <div class="container">
     <div class="status-bar">
-        🟢 Dhan API इंजन सफलतापूर्वक कनेक्टेड है (30 दिनों के लिए वैध)
+        Dhan API Engine Successfully Connected (Valid for 30 Days)
     </div>
 
-    <!-- Left Settings Side -->
     <div class="card">
-        <h3>🛡️ सिस्टम और रिस्क कण्ट्रोल</h3>
+        <h3>Risk Controls</h3>
         <div class="row-2">
             <div>
-                <label>मैक्स डेली ट्रेड्स</label>
+                <label>Max Daily Trades</label>
                 <input type="number" value="5">
             </div>
             <div>
-                <label>मैक्स लॉस कैप</label>
+                <label>Max Daily Loss</label>
                 <input type="number" value="500">
             </div>
         </div>
 
-        <h3>🔑 Dhan API ऑथेंटिकेशन</h3>
+        <h3>Dhan API Authentication</h3>
         <div>
             <label>Dhan Client ID</label>
-            <input type="text" placeholder="Client ID दर्ज करें">
+            <input type="text" placeholder="Enter Client ID">
         </div>
         <div style="margin-top: 10px;">
             <label>Dhan Access Token</label>
-            <input type="password" value="••••••••••••••••••••••••">
+            <input type="password" value="UCC_TOKEN_HOLDER">
         </div>
 
-        <h3>⚡ आर्डर कॉन्फ़िगरेशन</h3>
+        <h3>Order Configuration</h3>
         <div>
-            <label>ट्रेडिंग सिंबल</label>
+            <label>Trading Symbol</label>
             <input type="text" id="assetSymbol" value="NATURALGAS" onchange="handleSymbolChange()">
         </div>
         
         <div class="row-2" style="margin-top: 10px;">
             <div>
-                <label>क्वांटिटी</label>
+                <label>Qty</label>
                 <input type="number" value="10">
             </div>
             <div>
-                <label>ऑर्डर टाइप</label>
+                <label>Type</label>
                 <select>
                     <option>MARKET</option>
                     <option>LIMIT</option>
@@ -203,7 +205,7 @@
 
         <div class="live-price-box">
             <label>LIVE LTP (INR)</label>
-            <div class="ltp-val" id="displayLtp">⚡ लोड हो रहा है...</div>
+            <div class="ltp-val" id="displayLtp">Loading Data...</div>
         </div>
 
         <div class="btn-panel">
@@ -211,15 +213,13 @@
             <button class="btn btn-sell" onclick="simulateOrder('SELL')">Institutional Sell</button>
         </div>
 
-        <h3>📋 टूल रिस्पॉन्स लॉग</h3>
+        <h3>System Logs</h3>
         <div class="response-box" id="logConsole">
-            सिस्टम रेडी। सिंबल इनपुट की प्रतीक्षा है...
+            System ready. Awaiting inputs...
         </div>
     </div>
 
-    <!-- Right Chart Side -->
-    <div class="chart-container" id="tvChartArea">
-        <!-- TradingView Widget Embed -->
+    <div class="chart-container">
         <div id="tv_widget_live" style="height: 100%; width: 100%;"></div>
     </div>
 </div>
@@ -228,7 +228,6 @@
 <script type="text/javascript">
     function loadChart(symbolName) {
         let marketPrefix = "MCX:";
-        // अगर सिंबल इक्विटी का है तो NSE प्रीफिक्स सेट करें
         if(symbolName === "TECHM" || symbolName === "RELIANCE" || symbolName === "SBIN") {
             marketPrefix = "NSE:";
         }
@@ -246,9 +245,8 @@
             "container_id": "tv_widget_live"
         });
         
-        // डमी रिस्पांस अपडेट (लाइव मार्केट टेस्ट के लिए)
-        document.getElementById("displayLtp").innerText = "सक्रिय मोड";
-        document.getElementById("logConsole").innerHTML = `सफलता: ${symbolName} का लाइव डेटा लोड हो गया है।`;
+        document.getElementById("displayLtp").innerText = "Active Mode";
+        document.getElementById("logConsole").innerHTML = "Success: " + symbolName + " live chart loaded.";
     }
 
     window.onload = function() {
@@ -265,16 +263,16 @@
         let sym = document.getElementById("assetSymbol").value;
         let consoleLog = document.getElementById("logConsole");
         
-        // यदि मार्केट बंद टाइम पर टेस्ट कर रहे हैं तो साफ़ अलर्ट दें
-        let currentTime = new Date();
-        let hours = currentTime.getHours();
-        
         if (action === "BUY" && (sym === "TECHM" || sym === "RELIANCE")) {
-            consoleLog.innerHTML = `<span style="color:var(--primary-red)">त्रुटि (405): इक्विटी मार्केट बंद है। ऑर्डर रिजेक्ट हुआ।</span>`;
+            consoleLog.innerHTML = "<span style='color:var(--primary-red)'>Error (405): Market Closed. Order Rejected.</span>";
         } else {
-            consoleLog.innerHTML = `<span style="color:#56d364">सफलता: ${action} ऑर्डर ${sym} के लिए धन API को भेजा गया।</span>`;
+            consoleLog.innerHTML = "<span style='color:#56d364'>Success: " + action + " order for " + sym + " sent to Dhan API.</span>";
         }
     }
 </script>
 </body>
 </html>
+"""
+
+# HTML कंपोनेंट को स्ट्रीमलिट ऐप के अंदर रेंडर करना
+components.html(html_code, height=750, scrolling=True)
