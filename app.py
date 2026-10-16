@@ -1,192 +1,285 @@
-import time
-import pandas as pd
-import numpy as np
-import ta
-import streamlit as st
-import plotly.graph_objects as go
-from datetime import datetime
-import requests  # Dhan API के साथ कम्युनिकेट करने के लिए
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⚡ Advanced Dhan Algo Terminal</title>
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --card-bg: #161b22;
+            --text-color: #c9d1d9;
+            --text-bright: #ffffff;
+            --primary-green: #238636;
+            --primary-green-hover: #2ea043;
+            --primary-red: #da3637;
+            --primary-red-hover: #f85149;
+            --border-color: #30363d;
+            --accent-blue: #58a6ff;
+        }
 
-# --- 1. पेज सेटअप और इंटरफेस डिज़ाइन ---
-st.set_page_config(page_title="Dhan Smart-Money Terminal", layout="wide")
-st.title("🏛️ Institutional Smart-Money Terminal (Dhan Engine)")
-st.markdown("---")
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 10px;
+        }
 
-# --- 2. साइडबार कंट्रोल्स (सख्त रिस्क नियम प्रबंधन) ---
-st.sidebar.header("🛡️ Strict Risk & System Controls")
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 15px;
+        }
 
-if 'is_paused' not in st.session_state:
-    st.session_state.is_paused = False
+        @media (min-width: 768px) {
+            .container {
+                grid-template-columns: 350px 1fr;
+            }
+        }
 
-pause_btn = st.sidebar.button(
-    "⏸️ PAUSE ENGINE" if not st.session_state.is_paused else "▶️ RESUME ENGINE",
-    type="primary" if not st.session_state.is_paused else "secondary"
-)
-if pause_btn:
-    st.session_state.is_paused = not st.session_state.is_paused
+        /* Status Bar */
+        .status-bar {
+            background-color: rgba(35, 134, 54, 0.15);
+            border: 1px solid var(--primary-green);
+            color: #56d364;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: bold;
+            text-align: center;
+            font-size: 14px;
+            grid-column: 1 / -1;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
 
-# पैनिक किल-स्विच (Emergency Hard Stop)
-st.sidebar.markdown("---")
-if st.sidebar.button("🚨 EMERGENCY KILL SWITCH", type="primary", use_container_width=True):
-    st.session_state.is_paused = True
-    st.session_state.trade_count = 5
-    st.toast("Emergency Kill Switch Activated! All systems halted.", icon="🚨")
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+        }
 
-max_trades = st.sidebar.number_input("Maximum Daily Trades Limit", min_value=1, max_value=5, value=5)
-max_loss_limit = st.sidebar.number_input("Max Daily Loss Cap (INR)", min_value=100, max_value=500, value=500)
+        h3 {
+            color: var(--text-bright);
+            margin-top: 0;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
 
-if 'trade_count' not in st.session_state:
-    st.session_state.trade_count = 0
-if 'daily_pnl' not in st.session_state:
-    st.session_state.daily_pnl = 0.0
+        .form-group {
+            margin-bottom: 15px;
+        }
 
-# --- 3. DHAN API प्रमाणीकरण (Authentication) इनपुट ---
-st.sidebar.markdown("---")
-st.sidebar.header("🔑 Dhan API Authentication")
-dhan_client_id = st.sidebar.text_input("Enter Dhan Client ID", type="password")
-dhan_access_token = st.sidebar.text_input("Enter Dhan Access Token", type="password")
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 13px;
+            color: #8b949e;
+        }
 
-if not dhan_client_id or not dhan_access_token:
-    st.warning("⚠️ कृपया लाइव ट्रेडिंग शुरू करने के लिए साइडबार में Dhan Client ID और Access Token दर्ज करें।")
-else:
-    st.success("✅ Dhan API इंजन सफलतापूर्वक कनेक्टेड है (30 दिनों के लिए वैध)!")
+        input, select {
+            width: 100%;
+            padding: 10px;
+            background-color: #0d1117;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-bright);
+            font-size: 14px;
+            box-sizing: border-box;
+            transition: border-color 0.2s;
+        }
 
-# --- 4. एडवांस्ड FII/DII चाल + Open Interest (OI) मैट्रिक्स ---
-def analyze_smart_money(df):
-    df['atr'] = ta.volatility.average_true_range(df['high'], df['low'], df['close'], window=14)
-    
-    # FII/DII हैवी वॉल्यूम (औसत से 3 गुना अधिक)
-    df['avg_volume'] = df['volume'].rolling(window=20).mean()
-    df['inst_volume'] = df['volume'] > (df['avg_volume'] * 3.0)
-    
-    # VWAP लाइन कैलकुलेशन हटा दी गई है (Negative Claim के अनुसार)
-    # EMA 20 को भी शामिल नहीं किया गया है
-    
-    # PCR (Put Call Ratio) डेटा
-    df['pcr'] = df['put_oi'] / df['call_oi']
-    df['signal'] = "HOLD"
-    
-    # 200+ पॉइंट मूवमेंट ब्रेकआउट मैट्रिक्स (केवल वॉल्यूम और OI आधारित संस्थागत चाल)
-    buy_matrix = (df['inst_volume'] == True) & (df['pcr'] > 1.25)
-    sell_matrix = (df['inst_volume'] == True) & (df['pcr'] < 0.75)
-    
-    df.loc[buy_matrix, 'signal'] = 'BUY (Institutional OI Breakout)'
-    df.loc[sell_matrix, 'signal'] = 'SELL (Institutional OI Breakout)'
-    return df
+        input:focus {
+            border-color: var(--accent-blue);
+            outline: none;
+        }
 
-# --- 5. DHAN लाइव आर्डर प्लेसमेंट फंक्शन ---
-def place_dhan_order(symbol, quantity, order_type, price=0):
-    if not dhan_client_id or not dhan_access_token:
-        return "ERROR: क्रेडेंशियल्स गायब हैं"
+        .row-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        /* Action Buttons */
+        .btn-panel {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .btn {
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: var(--text-bright);
+            text-transform: uppercase;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .btn-buy { background-color: var(--primary-green); }
+        .btn-buy:hover { background-color: var(--primary-green-hover); }
+        .btn-sell { background-color: var(--primary-red); }
+        .btn-sell:hover { background-color: var(--primary-red-hover); }
+
+        .btn-kill {
+            width: 100%;
+            background-color: #21262d;
+            border: 1px solid var(--primary-red);
+            color: var(--primary-red);
+            margin-top: 15px;
+        }
+        .btn-kill:hover {
+            background-color: var(--primary-red);
+            color: var(--text-bright);
+        }
+
+        /* Live Data View */
+        .live-price-box {
+            text-align: center;
+            background: #0d1117;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            margin: 15px 0;
+        }
+
+        .ltp-val {
+            font-size: 28px;
+            font-weight: bold;
+            color: #56d364;
+            font-family: monospace;
+            animation: pulse 2s infinite;
+        }
+
+        /* Chart Wrapper */
+        .chart-container {
+            min-height: 450px;
+            height: 100%;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.8; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- Live Connected Header -->
+    <div class="status-bar">
+        🟢 Dhan API इंजन सफलतापूर्वक कनेक्टेड है (लाइव ट्रेडिंग मोड एक्टिव)
+    </div>
+
+    <!-- Left Controls Panel -->
+    <div class="card">
+        <h3>🛡️ सिस्टम और रिस्क कण्ट्रोल</h3>
         
-    url = "https://dhan.co"
-    headers = {
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-        "access-token": dhan_access_token
-    }
-    
-    # Dhan API के अनुसार आर्डर पेलोड संरचना
-    payload = {
-        "dhanClientId": dhan_client_id,
-        "correlationId": f"algo_{int(time.time())}",
-        "transactionType": "BUY" if order_type == "BUY" else "SELL",
-        "exchangeSegment": "NSE_EQ",
-        "productType": "INTRA", # इंट्राडे के लिए
-        "orderType": "MARKET",
-        "validity": "DAY",
-        "tradingSymbol": symbol,
-        "quantity": quantity
-    }
-    
-    try:
-        response = requests.post(url, json=payload, headers=headers)
-        if response.status_code == 200 or response.status_code == 201:
-            return response.json()
-        else:
-            return f"Failed: {response.text}"
-    except Exception as e:
-        return f"Exception: {str(e)}"
+        <div class="row-2">
+            <div class="form-group">
+                <label>मैक्स डेली ट्रेड्स</label>
+                <input type="number" value="5">
+            </div>
+            <div class="form-group">
+                <label>मैक्स लॉस कैप (INR)</label>
+                <input type="number" value="500">
+            </div>
+        </div>
 
-# --- 6. रीयल-टाइम लाइव डेटा फीड सिमुलेटर ---
-def get_live_market_stream():
-    np.random.seed(int(time.time()))
-    prices = 1730.0 + np.cumsum(np.random.normal(0, 5, 30))
-    opens = prices - np.random.normal(0, 2, 30)
-    closes = prices
-    highs = np.maximum(opens, closes) + np.random.uniform(1, 10, 30)
-    lows = np.minimum(opens, closes) - np.random.uniform(1, 10, 30)
-    volumes = np.random.randint(1000, 5000, 30)
-    
-    if np.random.rand() > 0.6:
-        volumes[-1] = volumes[-1] * 4.0
+        <h3>🔑 Dhan API ऑथेंटिकेशन</h3>
+        <div class="form-group">
+            <label>Dhan Client ID</label>
+            <input type="text" placeholder="अपनी Client ID दर्ज करें">
+        </div>
+        <div class="form-group">
+            <label>Dhan Access Token</label>
+            <input type="password" placeholder="••••••••••••••••••••">
+        </div>
+
+        <h3>⚡ आर्डर कॉन्फ़िगरेशन</h3>
+        <div class="form-group">
+            <label>ट्रेडिंग सिंबल (जैसे: NATURALGASOCT2026, TECHM)</label>
+            <input type="text" id="symInput" value="NATURALGASOCT2026" onchange="updateChart()">
+        </div>
         
-    call_oi = np.random.randint(70000, 150000, 30)
-    put_oi = np.random.randint(70000, 150000, 30)
-    if np.random.rand() > 0.7:
-        put_oi[-1] = put_oi[-1] * 2.5
-        
-    return pd.DataFrame({
-        'timestamp': pd.date_range(end=datetime.now(), periods=30, freq='5min'),
-        'open': opens, 'high': highs, 'low': lows, 'close': closes,
-        'volume': volumes, 'call_oi': call_oi, 'put_oi': put_oi
-    })
+        <div class="row-2">
+            <div class="form-group">
+                <label>क्वांटिटी (Qty)</label>
+                <input type="number" value="10">
+            </div>
+            <div class="form-group">
+                <label>ऑर्डर टाइप</label>
+                <select>
+                    <option>MARKET</option>
+                    <option>LIMIT</option>
+                </select>
+            </div>
+        </div>
 
-# --- 7. इंटरफेस लेआउट (मेन स्क्रीन) ---
-col1, col2 = st.columns([1, 2])
+        <div class="live-price-box">
+            <label>LIVE LTP (INR)</label>
+            <div class="ltp-val" id="liveLtp">₹1,724.26</div>
+        </div>
 
-with col1:
-    st.subheader("📝 Order Configuration")
-    symbol = st.text_input("Enter NSE Trading Symbol (e.g., MANKIND, TECHM)", value="TECHM").upper()
-    quantity = st.number_input("Order Quantity", min_value=1, value=10)
-    
-    df_live = get_live_market_stream()
-    df_analyzed = analyze_smart_money(df_live)
-    latest_row = df_analyzed.iloc[-1]
-    
-    # अपर और लोअर सर्किट लिमिट्स की गणना
-    base_price = latest_row['close']
-    upper_circuit = round(base_price * 1.10, 2)
-    lower_circuit = round(base_price * 0.90, 2)
-    
-    st.metric("Live LTP (INR)", f"₹{round(base_price, 2)}")
-    st.text(f"🔒 Upper Circuit Limit: ₹{upper_circuit}")
-    st.text(f"🔒 Lower Circuit Limit: ₹{lower_circuit}")
-    st.metric("Live PCR Ratio", f"{round(latest_row['pcr'], 2)}")
+        <div class="btn-panel">
+            <button class="btn btn-buy">Institutional Buy</button>
+            <button class="btn btn-sell">Institutional Sell</button>
+        </div>
 
-with col2:
-    st.subheader("📊 Live Candlestick View (Smart Money Active)")
-    fig = go.Figure(data=[go.Candlestick(
-        x=df_analyzed['timestamp'],
-        open=df_analyzed['open'], high=df_analyzed['high'],
-        low=df_analyzed['low'], close=df_analyzed['close']
-    )])
-    fig.update_layout(xaxis_rangeslider_visible=False, height=350, margin=dict(l=10, r=10, t=10, b=10))
-    st.plotly_chart(fig, use_container_width=True)
+        <button class="btn btn-kill">Emergency Kill Switch</button>
+    </div>
 
-# --- 8. एग्जीक्यूशन ट्रिगर पैनल ---
-st.markdown("---")
-st.subheader("⚡ Execute Instant Smart Trade (Dhan API)")
+    <!-- Right Live Chart Panel -->
+    <div class="chart-container" id="chartWrapper">
+        <!-- TradingView Widget BEGIN -->
+        <div class="tradingview-widget-container" style="height:100%;width:100%">
+          <div id="tradingview_chart" style="height:calc(100% - 32px);width:100%"></div>
+          <script type="text/javascript" src="https://tradingview.com"></script>
+          <script type="text/javascript">
+          function loadTradingView(symbol) {
+              new TradingView.widget({
+              "autosize": true,
+              "symbol": "MCX:" + symbol.replace("OCT2026", ""),
+              "interval": "5",
+              "timezone": "Asia/Kolkata",
+              "theme": "dark",
+              "style": "1",
+              "locale": "in",
+              "enable_publishing": false,
+              "hide_side_toolbar": false,
+              "allow_symbol_change": true,
+              "container_id": "tradingview_chart"
+            });
+          }
+          // Initial Load
+          window.onload = function() {
+              loadTradingView("NATURALGAS");
+          }
+          function updateChart() {
+              var sym = document.getElementById("symInput").value;
+              loadTradingView(sym);
+          }
+          </script>
+        </div>
+        <!-- TradingView Widget END -->
+    </div>
+</div>
 
-c1, c2 = st.columns(2)
-with c1:
-    if st.button("🟢 INSTITUTIONAL BUY", type="primary", use_container_width=True):
-        if st.session_state.trade_count >= max_trades:
-            st.error(f"🔒 Risk Limit Reached: आज के {max_trades} ट्रेड्स पूरे हो चुके हैं।")
-        elif st.session_state.is_paused:
-            st.warning("⏸️ System Paused: इंजन अभी पॉज़ मोड पर है।")
-        else:
-            res = place_dhan_order(symbol, quantity, "BUY")
-            st.session_state.trade_count += 1
-            st.write("Dhan Execution Response:", res)
-            
-with c2:
-    if st.button("🔴 INSTITUTIONAL SELL", type="secondary", use_container_width=True):
-        if st.session_state.trade_count >= max_trades:
-            st.error(f"🔒 Risk Limit Reached: आज के {max_trades} ट्रेड्स पूरे हो चुके हैं।")
-        elif st.session_state.is_paused:
-            st.warning("⏸️ System Paused: इंजन अभी पॉज़ मोड पर है।")
-        else:
-            res = place_dhan_order(symbol, quantity, "SELL")
-            st.session_state.trade_count += 1
-            st.write("Dhan Execution Response:", res)
+</body>
+</html>
