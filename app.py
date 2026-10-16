@@ -43,25 +43,24 @@ if 'daily_pnl' not in st.session_state:
 GROWW_API_KEY = "YOUR_GROWW_API_KEY"
 GROWW_SECRET = "YOUR_GROWW_SECRET"
 
+# फिक्स: Groww API को बिना आर्गुमेंट एरर के इनिशियलाइज करना
 try:
-    groww = GrowwAPI(api_key=GROWW_API_KEY, api_secret=GROWW_SECRET)
+    groww = GrowwAPI()
+    # अगर आपके पास टोकन सेटअप है तो डायरेक्ट कनेक्ट होगा
 except Exception as e:
     st.sidebar.error(f"Groww SDK Init Error: {e}")
 
-# --- 3. एडवांस्ड FII/DII चाल + Open Interest (OI) मैट्रिक्स (Fixed for IndexError) ---
+# --- 3. एडवांस्ड FII/DII चाल + Open Interest (OI) मैट्रिक्स ---
 def analyze_smart_money(df):
-    # सुरक्षा कवच: अगर डेटा खाली है, तो डिफ़ॉल्ट मान सेट करें
     if df.empty:
         df = pd.DataFrame([{
             'timestamp': datetime.now(), 'open': 0, 'high': 0, 'low': 0, 'close': 0, 
             'volume': 0, 'call_oi': 1, 'put_oi': 1, 'upper_circuit': 0, 'lower_circuit': 0
         }])
         
-    # सुरक्षा कवच: अगर डेटा 20 लाइनों से कम है, तो एरर से बचाने के लिए रो बढ़ा लें
     if len(df) < 20:
         df = pd.concat([df] * 20, ignore_index=True)
 
-    # इंडिकेटर कैलकुलेशन
     df['atr'] = ta.volatility.average_true_range(df['high'], df['low'], df['close'], window=14)
     
     # FII/DII हैवी वॉल्यूम (औसत से 3 गुना अधिक)
@@ -107,7 +106,7 @@ def get_live_market_stream(ticker):
     except Exception as e:
         pass
     
-    # फॉलबैक डेटा ताकि मार्केट बंद होने पर भी टर्मिनल क्रैश न हो
+    # फॉलबैक डेटा (मार्केट बंद होने या एपीआई रिस्पॉन्स न मिलने पर)
     return pd.DataFrame([{
         'timestamp': datetime.now(), 'open': 24000, 'high': 24100, 'low': 23900, 'close': 24020, 
         'volume': 5000, 'call_oi': 100000, 'put_oi': 130000, 'upper_circuit': 26400, 'lower_circuit': 21600
@@ -174,7 +173,7 @@ else:
 # स्मार्ट मनी अलार्म बॉक्स
 st.info(f"🤖 Institutional Signal Status: **{signal_status}**")
 
-# --- 7. कैंडलस्टिक चार्ट फीचर ---
+# --- 7. कैंडलस्टिक चार्ट फीचर (Fixed for theme/template ValueEdgeError) ---
 st.subheader("📊 Live Candlestick View")
 fig = go.Figure(data=[go.Candlestick(
     x=[df_analyzed['timestamp'].iloc[-1]],
@@ -184,7 +183,8 @@ fig = go.Figure(data=[go.Candlestick(
     close=[ltp],
     name=ticker_input
 )])
-fig.update_layout(theme="plotly_dark", xaxis_rangeslider_visible=False)
+# फिक्स: theme की जगह template="plotly_dark" का उपयोग किया गया है
+fig.update_layout(template="plotly_dark", xaxis_rangeslider_visible=False)
 st.plotly_chart(fig, use_container_width=True)
 
 st.markdown("---")
